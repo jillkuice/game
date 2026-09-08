@@ -367,11 +367,12 @@ const ATTACK_HIT_WINDOW = [0.14, 0.28]; // 이 구간에서만 판정 발생
 
 // 패링 (세키로/다크소울 식): R을 누르면 짧은 판정 구간이 열리고,
 // 그 구간에 보스의 (광역이 아닌) 무기 공격이 닿으면 완전히 무효화 + 보스를 경직시킴
-const PARRY_ACTIVE = 0.5;     // 이 시간 동안만 패링 판정이 유효함
-const PARRY_RECOVERY = 0.24;   // 판정 종료 후 다시 움직이기까지의 딜레이
-const PARRY_STAMINA_COST = 16;
-const BOSS_STAGGER_DURATION = 1.8; // 패링 성공 시 보스가 굳어있는 시간
-const RIPOSTE_MULT = 2.5;          // 경직 상태의 보스에게 주는 추가 피해 배율
+const PARRY_ACTIVE = 0.4;     // 이 시간 동안만 패링 판정이 유효함
+const PARRY_RECOVERY = 0.20;   // 판정 종료 후 다시 움직이기까지의 딜레이
+const PARRY_STAMINA_COST = 8;
+const BOSS_STAGGER_DURATION = 1.1; // 패링 성공 시 보스가 굳어있는 시간
+const RIPOSTE_MULT = 1.5;          // 경직 상태의 보스에게 주는 추가 피해 배율
+
 
 // ---------------------------------------------------------------
 // 3) 입력 처리 (키보드 + 마우스드래그 + 터치)
@@ -544,7 +545,7 @@ function getMoveDirection() {
 // ---------------------------------------------------------------
 const boss = {
   group: new THREE.Group(),
-  hp: 320, hpMax: 320,
+  hp: 600, hpMax: 600,
   radius: 1.6,
   speed: 3.6,
   state: 'DORMANT',       // DORMANT -> CHASE -> TELEGRAPH -> ATTACK -> RECOVER -> DEAD
@@ -553,6 +554,7 @@ const boss = {
   awake: false,
   alive: true,
   facing: 0,
+  if hp<350 radius 1.9 speed:4.3 
 };
 
 const bossMat = new THREE.MeshStandardMaterial({ color: 0x3a1f1f, roughness: 0.6, metalness: 0.3 });
@@ -601,7 +603,7 @@ scene.add(boss.group);
 
 const BOSS_AGGRO_RANGE = 16;
 const BOSS_MELEE_RANGE = 3.4;
-const BOSS_SLAM_RADIUS = 4.6;
+const BOSS_SLAM_RADIUS = 4;
 const BOSS_CHARGE_SPEED = 11;
 
 // 텔레그래프(예고) 시각 효과용 링

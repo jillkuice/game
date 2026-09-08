@@ -402,14 +402,14 @@ const ATTACK_HIT_WINDOW = [0.14, 0.28]; // 이 구간에서만 판정 발생
 // 패링 (세키로 식): R을 누르면 짧은 판정 구간이 열리고,
 // 그 구간에 보스의 (광역이 아닌) 무기 공격이 닿으면 완전히 무효화 + 보스의 자세(포스처) 게이지를 깎음.
 // 자세 게이지가 0이 되어야 완전 무방비(STAGGER) 상태가 됨 — 한 번 막았다고 바로 무방비가 되지 않음
-const PARRY_ACTIVE = 0.28;     // 이 시간 동안만 패링 판정이 유효함
-const PARRY_RECOVERY = 0.24;   // 판정 종료 후 다시 움직이기까지의 딜레이
-const PARRY_STAMINA_COST = 16;
-const POSTURE_DAMAGE_PER_PARRY = 34; // 패링 1회당 깎이는 자세 수치
+const PARRY_ACTIVE = 0.4;     // 이 시간 동안만 패링 판정이 유효함
+const PARRY_RECOVERY = 0.15;   // 판정 종료 후 다시 움직이기까지의 딜레이
+const PARRY_STAMINA_COST = 8;
+const POSTURE_DAMAGE_PER_PARRY = 20; // 패링 1회당 깎이는 자세 수치
 const POSTURE_REGEN_DELAY = 2.2;     // 마지막으로 자세가 깎인 뒤 이 시간이 지나야 회복 시작
 const POSTURE_REGEN_RATE = 14;       // 자세 초당 회복량
 const FLINCH_DURATION = 0.35;        // 자세가 아직 남았을 때, 패링에 성공하면 짧게 움찔하는 시간
-const BOSS_STAGGER_DURATION = 1.8;   // 자세가 완전히 깎였을 때 보스가 무방비로 굳어있는 시간
+const BOSS_STAGGER_DURATION = 2;   // 자세가 완전히 깎였을 때 보스가 무방비로 굳어있는 시간
 const RIPOSTE_MULT = 2.5;            // 무방비 상태의 보스에게 주는 추가 피해 배율
 
 // 회복 물약 (다크소울 에스트 플라스크 식): 마시면 시간을 두고 체력을 채워주며, 정해진 횟수만 사용 가능
@@ -599,7 +599,7 @@ function getMoveDirection() {
 // ---------------------------------------------------------------
 const boss = {
   group: new THREE.Group(),
-  hp: 320, hpMax: 320,
+  hp: 500, hpMax: 500,
   posture: 100, postureMax: 100,   // 세키로 식 자세(포스처) 게이지
   postureRegenTimer: 0,             // 마지막으로 자세가 깎인 뒤 지난 시간
   radius: 1.6,

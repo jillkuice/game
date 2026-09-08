@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>ASHEN VOW — a tiny soulslike</title>
+<style>
+  /* ============================================================
+     기본 스타일 - 화면 전체를 게임 캔버스로 씀
+     ============================================================ */
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #000; overflow: hidden;
+    font-family: Georgia, 'Times New Roman', serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #gameCanvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* ---------- UI 오버레이 ---------- */
+  #ui {
+    position: fixed; inset: 0; pointer-events: none;
+    color: #cbb98c; text-shadow: 0 2px 4px #000;
+  }
+
+  .barWrap { position: absolute; }
+  .barLabel {
+    font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+    margin-bottom: 3px; opacity: .85;
+  }
+  .barBg {
+    width: 260px; height: 14px; background: rgba(0,0,0,.55);
+    border: 1px solid rgba(200,180,140,.5); position: relative;
+  }
+  .barFill { height: 100%; transition: width .15s linear; }
+  #hpFill  { background: linear-gradient(90deg,#7a1414,#c22b2b); }
+  #stFill  { background: linear-gradient(90deg,#2f5d2f,#5ea65e); }
+
+  #playerBars { top: 22px; left: 22px; }
+  #stWrap { margin-top: 6px; }
+
+  #bossBars {
+    top: 22px; left: 50%; transform: translateX(-50%);
+    text-align: center;
+  }
+  #bossBars .barBg { width: 460px; height: 16px; }
+  #bossName {
+    font-size: 20px; letter-spacing: 6px; text-transform: uppercase;
+    margin-bottom: 4px; color: #e6d3a3;
+  }
+  #bossBarFill { background: linear-gradient(90deg,#5a0e0e,#b02020); }
+
+  #hint {
+    position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; text-align: center; line-height: 1.6; opacity: .8;
+    letter-spacing: 1px;
+  }
+
+  #msgOverlay {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; flex-direction: column; gap: 18px;
+    background: rgba(0,0,0,0); transition: background .8s ease;
+    z-index: 30; /* 터치 조작 레이어(#touchControls)보다 위에 오도록 */
+  }
+  #msgOverlay.show { background: rgba(0,0,0,.55); pointer-events: all; }
+  #msgText {
+    font-size: 54px; letter-spacing: 10px; opacity: 0;
+    transition: opacity 1.2s ease, letter-spacing 1.2s ease;
+  }
+  #msgText.show { opacity: 1; letter-spacing: 14px; }
+  #msgText.died { color: #a11616; }
+  #msgText.victory { color: #e6c35c; }
+  #restartBtn {
+    pointer-events: all; padding: 10px 28px; font-size: 14px;
+    letter-spacing: 3px; background: transparent; color: #cbb98c;
+    border: 1px solid #cbb98c; cursor: pointer; opacity: 0; transition: opacity 1s ease 1s;
+    text-transform: uppercase;
+  }
+  #restartBtn.show { opacity: 1; }
+  #restartBtn:hover { background: rgba(203,185,140,.15); }
+
+  /* ---------- 모바일 / 터치용 버튼 ---------- */
+  #touchControls {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .touchBtn {
+    position: absolute; pointer-events: all;
+    width: 68px; height: 68px; border-radius: 50%;
+    background: rgba(203,185,140,.12); border: 1px solid rgba(203,185,140,.6);
+    color: #e6d3a3; font-size: 11px; letter-spacing: 1px;
+    display: flex; align-items: center; justify-content: center;
+    text-transform: uppercase; text-align: center;
+  }
+  .touchBtn:active { background: rgba(203,185,140,.35); }
+  #btnAttack { right: 100px; bottom: 40px; }
+  #btnDodge  { right: 24px; bottom: 90px; }
+  #btnSprint { right: 24px; bottom: 20px; width: 50px; height: 50px; font-size: 9px; }
+  #btnParry  { right: 176px; bottom: 40px; background: rgba(90,140,220,.15); }
+  #btnParry:active, #btnParry.flash { background: rgba(90,140,220,.5); }
+
+  #lookPad {
+    position: absolute; inset: 0;
+    pointer-events: all;
+  }
+
+  /* ---------- 가상 조이스틱 ---------- */
+  #joystickBase {
+    position: absolute; left: 30px; bottom: 30px;
+    width: 120px; height: 120px; border-radius: 50%;
+    background: rgba(203,185,140,.08); border: 1px solid rgba(203,185,140,.45);
+    pointer-events: all; touch-action: none;
+  }
+  #joystickKnob {
+    position: absolute; left: 50%; top: 50%; width: 50px; height: 50px;
+    margin-left: -25px; margin-top: -25px; border-radius: 50%;
+    background: rgba(203,185,140,.35); border: 1px solid rgba(230,211,163,.8);
+    pointer-events: none;
+  }
+
+  #btnLockOn {
+    right: 24px; top: 140px; width: 58px; height: 58px;
+    background: rgba(178,32,32,.15);
+  }
+  #btnLockOn.active { background: rgba(178,32,32,.6); border-color: #ff6644; color: #ffe4d8; }
+
+  #centerFlash {
+    position: absolute; inset: 0; background: #fff; opacity: 0;
+    pointer-events: none;
+  }
+
+  #crosshair {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(230,211,163,.5);
+  }
+
+  #parryText {
+    position: absolute; top: 36%; left: 50%; transform: translate(-50%,-50%);
+    font-size: 42px; letter-spacing: 6px; color: #ffd15c; opacity: 0;
+    text-transform: uppercase; pointer-events: none;
+    transition: opacity .12s ease, transform .5s ease;
+  }
+  #parryText.show { opacity: 1; transform: translate(-50%,-80%); transition: opacity .1s ease, transform .8s ease; }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="ui">
+  <div id="playerBars" class="barWrap">
+    <div class="barLabel">Vitality</div>
+    <div class="barBg"><div id="hpFill" class="barFill" style="width:100%"></div></div>
+    <div id="stWrap">
+      <div class="barLabel">Stamina</div>
+      <div class="barBg"><div id="stFill" class="barFill" style="width:100%"></div></div>
+    </div>
+  </div>
+
+  <div id="bossBars" class="barWrap" style="display:none">
+    <div id="bossName">The Ashen Warden</div>
+    <div class="barBg"><div id="bossBarFill" class="barFill" style="width:100%"></div></div>
+  </div>
+
+  <div id="crosshair"></div>
+  <div id="centerFlash"></div>
+  <div id="parryText">Parry!</div>
+
+  <div id="hint">
+    WASD/조이스틱 이동 · 드래그로 시야 회전 · 좌클릭/F 공격 · Space 회피 · Shift 달리기 · Q 락온 · R 패링<br>
+    보스의 도끼 공격이 닿기 직전 R을 누르면 패링(무기 공격만, 내려찍기 광역은 불가)
+  </div>
+
+  <div id="msgOverlay">
+    <div id="msgText"></div>
+    <button id="restartBtn">다시 도전하기</button>
+  </div>
+
+  <div id="touchControls">
+    <div id="lookPad"></div>
+    <div id="joystickBase"><div id="joystickKnob"></div></div>
+    <div id="btnAttack" class="touchBtn">공격</div>
+    <div id="btnParry" class="touchBtn">패링</div>
+    <div id="btnDodge" class="touchBtn">회피</div>
+    <div id="btnSprint" class="touchBtn">질주</div>
+    <div id="btnLockOn" class="touchBtn">락온</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ================================================================
+   ASHEN VOW — 초미니 소울라이크
+   ------------------------------------------------------------
+   이 코드는 큰 흐름이 이렇게 나뉩니다:
+   1) THREE.js 씬 / 조명 / 아레나 만들기
+   2) 플레이어 캐릭터 (이동, 회피, 공격, 스태미나)
+   3) 3인칭 카메라 (플레이어를 뒤에서 따라다니며, 드래그로 회전)
+   4) 보스 (상태머신: 대기 → 추적 → 공격 예고 → 공격 → 회복)
+   5) 충돌 판정은 전부 "두 지점 사이 거리"로 계산하는 단순한 방식
+   6) requestAnimationFrame 루프에서 매 프레임 위 모든 걸 갱신
+   ================================================================ */
+
+// ---------------------------------------------------------------
+// 1) 씬 / 카메라 / 렌더러 기본 세팅
+// ---------------------------------------------------------------
+const canvas = document.getElementById('gameCanvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07070a);
+scene.fog = new THREE.FogExp2(0x07070a, 0.028);
+
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 500);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---------------------------------------------------------------
+// 조명: 어두운 분위기 + 은은한 달빛 + 보스 근처 붉은 빛
+// ---------------------------------------------------------------
+scene.add(new THREE.AmbientLight(0x404055, 0.9));
+
+const moonLight = new THREE.DirectionalLight(0x8fa3c8, 1.1);
+moonLight.position.set(-30, 50, -20);
+moonLight.castShadow = true;
+moonLight.shadow.mapSize.set(2048, 2048);
+moonLight.shadow.camera.left = -60;
+moonLight.shadow.camera.right = 60;
+moonLight.shadow.camera.top = 60;
+moonLight.shadow.camera.bottom = -60;
+moonLight.shadow.camera.far = 150;
+scene.add(moonLight);
+
+const bossGlow = new THREE.PointLight(0xff3300, 0, 40, 2);
+scene.add(bossGlow);
+
+// ---------------------------------------------------------------
+// 아레나 바닥 + 원형 폐허 벽 + 장식용 기둥들
+// ---------------------------------------------------------------
+const ARENA_RADIUS = 34;
+
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.95 });
+const ground = new THREE.Mesh(new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 1, 48), groundMat);
+ground.position.y = -0.5;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// 바닥에 은은한 균열 패턴 느낌을 주는 링들
+for (let r = 6; r < ARENA_RADIUS; r += 6) {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(r, r + 0.15, 48),
+    new THREE.MeshStandardMaterial({ color: 0x45454e, roughness: 1, side: THREE.DoubleSide })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.01;
+  scene.add(ring);
+}
+
+// 아레나 외곽 벽 (낮은 폐허 느낌)
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x1c1c22, roughness: 1 });
+const wallCount = 28;
+for (let i = 0; i < wallCount; i++) {
+  const a = (i / wallCount) * Math.PI * 2;
+  const h = 4 + Math.random() * 5;
+  const block = new THREE.Mesh(new THREE.BoxGeometry(3, h, 3), wallMat);
+  block.position.set(Math.cos(a) * (ARENA_RADIUS + 1.5), h / 2 - 0.5, Math.sin(a) * (ARENA_RADIUS + 1.5));
+  block.rotation.y = -a;
+  block.castShadow = true;
+  block.receiveShadow = true;
+  scene.add(block);
+}
+
+// 기둥 장식 (분위기용)
+const pillarMat = new THREE.MeshStandardMaterial({ color: 0x33333c, roughness: 0.9 });
+[[14, 14], [-14, 14], [14, -14], [-14, -14]].forEach(([x, z]) => {
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.2, 9, 8), pillarMat);
+  pillar.position.set(x, 4, z);
+  pillar.castShadow = true;
+  scene.add(pillar);
+});
+
+// ---------------------------------------------------------------
+// 2) 플레이어
+// ---------------------------------------------------------------
+const player = {
+  group: new THREE.Group(),
+  hp: 100, hpMax: 100,
+  st: 100, stMax: 100,
+  speed: 7.2,
+  sprintMult: 1.6,
+  radius: 0.6,
+  facing: 0,            // 캐릭터가 바라보는 각도 (라디안)
+  vel: new THREE.Vector3(),
+  isDodging: false,
+  dodgeTimer: 0,
+  dodgeDir: new THREE.Vector3(),
+  iframes: false,
+  isAttacking: false,
+  attackTimer: 0,
+  attackCooldown: 0,
+  hitRegistered: false,
+  invulnAfterHit: 0,
+  isParrying: false,
+  parryTimer: 0,
+  parrySuccess: false,
+  alive: true,
+};
+
+// 플레이어 몸체 (캡슐 형태를 박스+구로 대충 표현 — 저사양 friendly)
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x9c8a63, roughness: 0.6, metalness: 0.2 });
+const cloakMat = new THREE.MeshStandardMaterial({ color: 0x2c2a33, roughness: 0.9 });
+
+const pTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.9, 10), bodyMat);
+pTorso.position.y = 1.1;
+pTorso.castShadow = true;
+player.group.add(pTorso);
+const pTorsoTop = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 10), bodyMat);
+pTorsoTop.position.y = 1.55;
+pTorsoTop.castShadow = true;
+player.group.add(pTorsoTop);
+const pTorsoBot = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 10), bodyMat);
+pTorsoBot.position.y = 0.65;
+pTorsoBot.castShadow = true;
+player.group.add(pTorsoBot);
+
+const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), bodyMat);
+pHead.position.y = 1.75;
+pHead.castShadow = true;
+player.group.add(pHead);
+
+const pCloak = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.1, 8, 1, true), cloakMat);
+pCloak.position.y = 0.85;
+pCloak.rotation.x = Math.PI;
+pCloak.material.side = THREE.DoubleSide;
+player.group.add(pCloak);
+
+// 무기 (검) — 공격 애니메이션에서 이 오브젝트를 회전시킴
+const swordGroup = new THREE.Group();
+const bladeMat = new THREE.MeshStandardMaterial({ color: 0xd8d8e0, metalness: 0.8, roughness: 0.25, emissive: 0x111122 });
+const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.15, 0.22), bladeMat);
+blade.position.y = 0.75;
+const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.12), new THREE.MeshStandardMaterial({ color: 0x33291a }));
+swordGroup.add(blade, hilt);
+swordGroup.position.set(0.55, 1.1, 0.15);
+swordGroup.rotation.z = -0.3;
+player.group.add(swordGroup);
+swordGroup.castShadow = true;
+
+player.group.position.set(0, 0, 18);
+scene.add(player.group);
+
+const PLAYER_ATTACK_RANGE = 2.6;
+const PLAYER_ATTACK_ARC = Math.PI / 2.1; // 부채꼴 판정 각도
+const PLAYER_ATTACK_DMG = 14;
+const DODGE_DURATION = 0.38;
+const DODGE_SPEED = 14;
+const DODGE_STAMINA_COST = 26;
+const ATTACK_STAMINA_COST = 18;
+const ATTACK_DURATION = 0.42;
+const ATTACK_HIT_WINDOW = [0.14, 0.28]; // 이 구간에서만 판정 발생
+
+// 패링 (세키로/다크소울 식): R을 누르면 짧은 판정 구간이 열리고,
+// 그 구간에 보스의 (광역이 아닌) 무기 공격이 닿으면 완전히 무효화 + 보스를 경직시킴
+const PARRY_ACTIVE = 0.5;     // 이 시간 동안만 패링 판정이 유효함
+const PARRY_RECOVERY = 0.24;   // 판정 종료 후 다시 움직이기까지의 딜레이
+const PARRY_STAMINA_COST = 16;
+const BOSS_STAGGER_DURATION = 1.8; // 패링 성공 시 보스가 굳어있는 시간
+const RIPOSTE_MULT = 2.5;          // 경직 상태의 보스에게 주는 추가 피해 배율
+
+// ---------------------------------------------------------------
+// 3) 입력 처리 (키보드 + 마우스드래그 + 터치)
+// ---------------------------------------------------------------
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyF') tryAttack();
+  if (e.code === 'Space') { tryDodge(); e.preventDefault(); }
+  if (e.code === 'KeyR') tryParry();
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+let cameraYaw = Math.PI;     // 카메라가 플레이어 뒤에서 도는 각도
+let cameraPitch = 0.35;      // 위아래 기울기
+let dragging = false;
+let lastX = 0, lastY = 0;
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 0) tryAttack();
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('mouseup', () => dragging = false);
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  // 락온 중에는 카메라 좌우각을 보스 방향으로 자동 고정하므로 수동 회전은 무시
+  if (!lockOn.active) cameraYaw -= dx * 0.006;
+  cameraPitch = Math.max(0.08, Math.min(0.9, cameraPitch - dy * 0.004));
+});
+
+// 터치 드래그(화면 전체) = 시야 회전
+const touchLook = { active: false, x: 0, y: 0, id: null };
+
+document.getElementById('lookPad').addEventListener('touchstart', e => {
+  const t = e.changedTouches[0];
+  touchLook.active = true; touchLook.id = t.identifier; touchLook.x = t.clientX; touchLook.y = t.clientY;
+}, { passive: true });
+
+window.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (touchLook.active && t.identifier === touchLook.id) {
+      const dx = t.clientX - touchLook.x, dy = t.clientY - touchLook.y;
+      touchLook.x = t.clientX; touchLook.y = t.clientY;
+      if (!lockOn.active) cameraYaw -= dx * 0.007;
+      cameraPitch = Math.max(0.08, Math.min(0.9, cameraPitch - dy * 0.005));
+    }
+  }
+}, { passive: true });
+
+window.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === touchLook.id) { touchLook.active = false; }
+  }
+}, { passive: true });
+
+// ---------------------------------------------------------------
+// 가상 조이스틱 (마우스+터치 공용, Pointer Events 사용)
+// 왼쪽 아래 원형 베이스 안에서 손잡이(knob)를 드래그하면
+// joystick.vec 에 -1~1 범위의 방향 벡터가 저장됨
+// ---------------------------------------------------------------
+const joystick = { active: false, pointerId: null, vec: new THREE.Vector3() };
+const joyBase = document.getElementById('joystickBase');
+const joyKnob = document.getElementById('joystickKnob');
+const JOY_RADIUS = 42;
+
+function updateJoystick(e) {
+  const rect = joyBase.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+  let dx = e.clientX - cx, dy = e.clientY - cy;
+  const len = Math.hypot(dx, dy);
+  if (len > JOY_RADIUS) { dx = dx / len * JOY_RADIUS; dy = dy / len * JOY_RADIUS; }
+  joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+  joystick.vec.set(dx / JOY_RADIUS, 0, dy / JOY_RADIUS);
+}
+function endJoystick(e) {
+  if (e.pointerId !== joystick.pointerId) return;
+  joystick.active = false;
+  joystick.vec.set(0, 0, 0);
+  joyKnob.style.transform = 'translate(0px, 0px)';
+}
+joyBase.addEventListener('pointerdown', e => {
+  joystick.active = true;
+  joystick.pointerId = e.pointerId;
+  joyBase.setPointerCapture(e.pointerId);
+  updateJoystick(e);
+});
+joyBase.addEventListener('pointermove', e => {
+  if (joystick.active && e.pointerId === joystick.pointerId) updateJoystick(e);
+});
+joyBase.addEventListener('pointerup', endJoystick);
+joyBase.addEventListener('pointercancel', endJoystick);
+
+let sprintTouch = false;
+document.getElementById('btnAttack').addEventListener('touchstart', e => { e.preventDefault(); tryAttack(); });
+document.getElementById('btnDodge').addEventListener('touchstart', e => { e.preventDefault(); tryDodge(); });
+document.getElementById('btnParry').addEventListener('touchstart', e => { e.preventDefault(); tryParry(); });
+document.getElementById('btnSprint').addEventListener('touchstart', e => { e.preventDefault(); sprintTouch = true; });
+document.getElementById('btnSprint').addEventListener('touchend', e => { e.preventDefault(); sprintTouch = false; });
+document.getElementById('btnLockOn').addEventListener('touchstart', e => { e.preventDefault(); toggleLockOn(); });
+document.getElementById('btnLockOn').addEventListener('click', toggleLockOn);
+
+// ---------------------------------------------------------------
+// 공격 / 회피 트리거 함수
+// ---------------------------------------------------------------
+function tryAttack() {
+  if (!player.alive || player.isAttacking || player.isDodging || player.isParrying) return;
+  if (player.st < ATTACK_STAMINA_COST) return;
+  player.isAttacking = true;
+  player.attackTimer = 0;
+  player.hitRegistered = false;
+  player.st -= ATTACK_STAMINA_COST;
+}
+
+function tryDodge() {
+  if (!player.alive || player.isDodging || player.isAttacking || player.isParrying) return;
+  if (player.st < DODGE_STAMINA_COST) return;
+  player.isDodging = true;
+  player.iframes = true;
+  player.dodgeTimer = 0;
+  player.st -= DODGE_STAMINA_COST;
+  // 회피 방향: 현재 이동 입력이 있으면 그 방향, 없으면 캐릭터 정면 반대(뒤로 구르기)
+  const dir = getMoveDirection();
+  if (dir.lengthSq() > 0.0001) player.dodgeDir.copy(dir).normalize();
+  else player.dodgeDir.set(-Math.sin(player.facing), 0, -Math.cos(player.facing));
+}
+
+function tryParry() {
+  if (!player.alive || player.isAttacking || player.isDodging || player.isParrying) return;
+  if (player.st < PARRY_STAMINA_COST) return;
+  player.isParrying = true;
+  player.parryTimer = 0;
+  player.parrySuccess = false;
+  player.st -= PARRY_STAMINA_COST;
+}
+
+function getMoveDirection() {
+  // 카메라 기준 전/후/좌/우를 계산해서 월드 방향 벡터로 변환
+  let ix = 0, iz = 0;
+  if (keys['KeyW']) iz -= 1;
+  if (keys['KeyS']) iz += 1;
+  if (keys['KeyA']) ix -= 1;
+  if (keys['KeyD']) ix += 1;
+  // 조이스틱이 조작 중이면 키보드 입력 대신 조이스틱 벡터를 사용
+  if (joystick.active && joystick.vec.lengthSq() > 0.01) {
+    ix = joystick.vec.x;
+    iz = joystick.vec.z;
+  }
+  const mag = Math.min(1, Math.hypot(ix, iz));
+  if (mag < 0.0001) return new THREE.Vector3();
+
+  // 카메라가 보는 방향(forward)과 그 오른쪽(right) 벡터를 직접 구해서
+  // "카메라 기준 앞/뒤/좌/우"를 월드 좌표로 정확히 변환한다.
+  // (이전 버전은 회전행렬 부호가 어긋나 있어 카메라 각도에 따라 좌우 이동이 뒤틀렸음)
+  const cosY = Math.cos(cameraYaw), sinY = Math.sin(cameraYaw);
+  const forward = new THREE.Vector3(-sinY, 0, -cosY); // 카메라가 바라보는 방향
+  const right = new THREE.Vector3(cosY, 0, -sinY);    // 카메라 기준 오른쪽
+
+  const dir = new THREE.Vector3()
+    .addScaledVector(right, ix)
+    .addScaledVector(forward, -iz); // iz가 -1일 때(W) forward 방향이 되도록 부호 반전
+  if (dir.lengthSq() < 0.0001) return dir;
+  dir.normalize().multiplyScalar(mag);
+  return dir;
+}
+
+// ---------------------------------------------------------------
+// 4) 보스
+// ---------------------------------------------------------------
+const boss = {
+  group: new THREE.Group(),
+  hp: 320, hpMax: 320,
+  radius: 1.6,
+  speed: 3.6,
+  state: 'DORMANT',       // DORMANT -> CHASE -> TELEGRAPH -> ATTACK -> RECOVER -> DEAD
+  stateTimer: 0,
+  attackType: null,
+  awake: false,
+  alive: true,
+  facing: 0,
+};
+
+const bossMat = new THREE.MeshStandardMaterial({ color: 0x3a1f1f, roughness: 0.6, metalness: 0.3 });
+const bossEmissiveMat = new THREE.MeshStandardMaterial({ color: 0x1a1010, emissive: 0xff2200, emissiveIntensity: 1.2, roughness: 0.4 });
+
+const bTorso = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 2.2, 12), bossMat);
+bTorso.position.y = 2.6;
+bTorso.castShadow = true;
+boss.group.add(bTorso);
+const bTorsoTop = new THREE.Mesh(new THREE.SphereGeometry(1.1, 12, 12), bossMat);
+bTorsoTop.position.y = 3.7;
+bTorsoTop.castShadow = true;
+boss.group.add(bTorsoTop);
+const bTorsoBot = new THREE.Mesh(new THREE.SphereGeometry(1.1, 12, 12), bossMat);
+bTorsoBot.position.y = 1.5;
+bTorsoBot.castShadow = true;
+boss.group.add(bTorsoBot);
+
+const bHead = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.0, 1.1), bossMat);
+bHead.position.y = 4.4;
+bHead.castShadow = true;
+boss.group.add(bHead);
+
+// 눈 (붉은 발광)
+[-0.28, 0.28].forEach(x => {
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), bossEmissiveMat);
+  eye.position.set(x, 4.45, 0.5);
+  boss.group.add(eye);
+});
+
+// 무기: 거대한 도끼 (팔 대신 단순화된 형태)
+const axeGroup = new THREE.Group();
+const axeHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 3.2, 8), new THREE.MeshStandardMaterial({ color: 0x241a12 }));
+axeHandle.position.y = 1.6;
+const axeHead = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.1, 4), new THREE.MeshStandardMaterial({ color: 0x555560, metalness: 0.7, roughness: 0.3 }));
+axeHead.rotation.z = Math.PI / 2;
+axeHead.position.set(0, 3.1, 0);
+axeGroup.add(axeHandle, axeHead);
+axeGroup.position.set(1.5, 1.2, 0);
+axeGroup.rotation.z = 0.4;
+boss.group.add(axeGroup);
+boss.group.traverse(o => { if (o.isMesh) o.castShadow = true; });
+
+boss.group.position.set(0, 0, -8);
+scene.add(boss.group);
+
+const BOSS_AGGRO_RANGE = 16;
+const BOSS_MELEE_RANGE = 3.4;
+const BOSS_SLAM_RADIUS = 4.6;
+const BOSS_CHARGE_SPEED = 11;
+
+// 텔레그래프(예고) 시각 효과용 링
+const telegraphRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.1, 0.3, 32),
+  new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0, side: THREE.DoubleSide })
+);
+telegraphRing.rotation.x = -Math.PI / 2;
+telegraphRing.position.y = 0.05;
+scene.add(telegraphRing);
+
+// ---------------------------------------------------------------
+// 락온(Lock-On) 시스템
+// Q 키(또는 화면의 '락온' 버튼)로 켜고 끔.
+// 켜져 있는 동안: 플레이어가 항상 보스를 바라보고,
+// 카메라는 자동으로 "플레이어 뒤 - 보스가 정면"이 되도록 서서히 회전함.
+// ---------------------------------------------------------------
+const lockOn = { active: false };
+
+function makeRingTexture() {
+  // 보스 머리 위에 띄울 붉은 링을 캔버스로 직접 그려서 텍스처로 사용
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.strokeStyle = '#ff4422';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(32, 32, 22, 0, Math.PI * 2);
+  ctx.stroke();
+  return new THREE.CanvasTexture(c);
+}
+// Sprite는 항상 카메라를 향하도록 THREE.js가 자동으로 처리해줌 (billboard)
+const lockReticle = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: makeRingTexture(), transparent: true, depthTest: false
+}));
+lockReticle.scale.set(1.3, 1.3, 1.3);
+lockReticle.visible = false;
+scene.add(lockReticle);
+
+function toggleLockOn() {
+  if (!boss.awake || !boss.alive) return; // 보스가 깨어있을 때만 락온 가능
+  lockOn.active = !lockOn.active;
+  document.getElementById('btnLockOn').classList.toggle('active', lockOn.active);
+  lockReticle.visible = lockOn.active;
+}
+window.addEventListener('keydown', e => {
+  if (e.code === 'KeyQ' || e.code === 'Tab') { toggleLockOn(); e.preventDefault(); }
+});
+
+function updateLockOn(dt) {
+  // 보스가 죽거나 다시 잠들면(발생하지 않지만 안전하게) 락온 자동 해제
+  if (lockOn.active && (!boss.alive || !boss.awake)) {
+    lockOn.active = false;
+    document.getElementById('btnLockOn').classList.remove('active');
+    lockReticle.visible = false;
+    return;
+  }
+  if (!lockOn.active) return;
+
+  const toBoss = new THREE.Vector3().subVectors(boss.group.position, player.group.position);
+  const dist = toBoss.length();
+  if (dist > BOSS_AGGRO_RANGE + 8) { // 너무 멀어지면 자동 해제
+    lockOn.active = false;
+    document.getElementById('btnLockOn').classList.remove('active');
+    lockReticle.visible = false;
+    return;
+  }
+  toBoss.y = 0;
+  toBoss.normalize();
+
+  // 플레이어는 항상 보스를 정면으로 바라봄 (이동은 여전히 조이스틱/WASD로 자유롭게, 즉 옆걸음질 가능)
+  player.facing = Math.atan2(toBoss.x, toBoss.z);
+  player.group.rotation.y = player.facing;
+
+  // 카메라 yaw를 "플레이어 뒤 - 보스가 화면 중앙"이 되는 각도로 부드럽게 보간
+  const desiredYaw = Math.atan2(-toBoss.x, -toBoss.z);
+  let diff = desiredYaw - cameraYaw;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  cameraYaw += diff * Math.min(1, dt * 6);
+
+  // 락온 표식을 보스 머리 위로 이동
+  lockReticle.position.set(boss.group.position.x, 5.4, boss.group.position.z);
+}
+
+// ---------------------------------------------------------------
+// UI 갱신 헬퍼
+// ---------------------------------------------------------------
+const hpFill = document.getElementById('hpFill');
+const stFill = document.getElementById('stFill');
+const bossBars = document.getElementById('bossBars');
+const bossBarFill = document.getElementById('bossBarFill');
+const msgOverlay = document.getElementById('msgOverlay');
+const msgText = document.getElementById('msgText');
+const restartBtn = document.getElementById('restartBtn');
+const centerFlash = document.getElementById('centerFlash');
+
+function updateUI() {
+  hpFill.style.width = Math.max(0, player.hp / player.hpMax * 100) + '%';
+  stFill.style.width = Math.max(0, player.st / player.stMax * 100) + '%';
+  if (boss.awake) {
+    bossBars.style.display = 'block';
+    bossBarFill.style.width = Math.max(0, boss.hp / boss.hpMax * 100) + '%';
+  }
+}
+
+function flash(color) {
+  centerFlash.style.background = color || '#fff';
+  centerFlash.style.transition = 'none';
+  centerFlash.style.opacity = '0.25';
+  requestAnimationFrame(() => {
+    centerFlash.style.transition = 'opacity .3s ease';
+    centerFlash.style.opacity = '0';
+  });
+}
+
+const parryTextEl = document.getElementById('parryText');
+function showParryText() {
+  parryTextEl.classList.remove('show');
+  void parryTextEl.offsetWidth; // 강제 리플로우로 애니메이션을 처음부터 다시 재생
+  parryTextEl.classList.add('show');
+  setTimeout(() => parryTextEl.classList.remove('show'), 900);
+}
+
+let gameOver = false;
+function showEnding(kind) {
+  gameOver = true;
+  msgOverlay.classList.add('show');
+  msgText.textContent = kind === 'died' ? 'YOU DIED' : 'VICTORY';
+  msgText.className = kind;
+  requestAnimationFrame(() => msgText.classList.add('show'));
+  setTimeout(() => restartBtn.classList.add('show'), 400);
+}
+restartBtn.addEventListener('click', () => location.reload());
+
+// ---------------------------------------------------------------
+// 5) 메인 루프
+// ---------------------------------------------------------------
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05); // 프레임 드랍 시 순간이동 방지
+  if (!gameOver) {
+    updatePlayer(dt);
+    updateBoss(dt);
+    resolveCombat(dt);
+    updateLockOn(dt);
+  }
+  updateCamera(dt);
+  updateUI();
+  renderer.render(scene, camera);
+}
+
+// ---------------------------------------------------------------
+// 플레이어 갱신
+// ---------------------------------------------------------------
+function updatePlayer(dt) {
+  if (!player.alive) return;
+
+  // 스태미나 자연 회복 (구르는 중/공격 중/패링 중엔 회복 안 함)
+  if (!player.isDodging && !player.isAttacking && !player.isParrying) {
+    player.st = Math.min(player.stMax, player.st + dt * 18);
+  }
+  if (player.invulnAfterHit > 0) player.invulnAfterHit -= dt;
+
+  // ---- 패링 처리 ----
+  if (player.isParrying) {
+    player.parryTimer += dt;
+    // 패링 자세: 검을 앞으로 세워 막는 포즈
+    swordGroup.rotation.x = -0.25;
+    swordGroup.rotation.z = -1.15;
+    if (player.parryTimer >= PARRY_ACTIVE + PARRY_RECOVERY) {
+      player.isParrying = false;
+      swordGroup.rotation.x = 0;
+      swordGroup.rotation.z = -0.3; // 기본 자세로 복귀
+    }
+  }
+  // ---- 회피 처리 ----
+  else if (player.isDodging) {
+    player.dodgeTimer += dt;
+    const t = player.dodgeTimer / DODGE_DURATION;
+    const speedCurve = Math.sin(Math.min(t, 1) * Math.PI); // 시작/끝은 느리고 중간은 빠르게
+    player.group.position.addScaledVector(player.dodgeDir, DODGE_SPEED * speedCurve * dt);
+    clampToArena(player.group.position, player.radius);
+    if (t >= 1) {
+      player.isDodging = false;
+      player.iframes = false;
+    }
+  }
+  // ---- 공격 처리 ----
+  else if (player.isAttacking) {
+    player.attackTimer += dt;
+    const t = player.attackTimer / ATTACK_DURATION;
+    swordGroup.rotation.x = -Math.PI * 1.3 * Math.min(t * 1.6, 1);
+    if (t >= 1) {
+      player.isAttacking = false;
+      swordGroup.rotation.x = 0;
+    }
+  }
+  // ---- 일반 이동 ----
+  else {
+    const dir = getMoveDirection();
+    const sprinting = (keys['ShiftLeft'] || keys['ShiftRight'] || sprintTouch) && player.st > 2 && dir.lengthSq() > 0;
+    const spd = player.speed * (sprinting ? player.sprintMult : 1);
+    if (dir.lengthSq() > 0.0001) {
+      player.group.position.addScaledVector(dir, spd * dt);
+      player.facing = Math.atan2(dir.x, dir.z);
+      if (sprinting) player.st = Math.max(0, player.st - dt * 14);
+    }
+    clampToArena(player.group.position, player.radius);
+  }
+
+  player.group.rotation.y = player.facing;
+}
+
+function clampToArena(pos, radius) {
+  const d = Math.hypot(pos.x, pos.z);
+  const max = ARENA_RADIUS - radius - 1;
+  if (d > max) {
+    const s = max / d;
+    pos.x *= s; pos.z *= s;
+  }
+}
+
+// ---------------------------------------------------------------
+// 보스 갱신 (상태 머신)
+// ---------------------------------------------------------------
+function updateBoss(dt) {
+  if (!boss.alive) return;
+  const toPlayer = new THREE.Vector3().subVectors(player.group.position, boss.group.position);
+  const dist = toPlayer.length();
+  boss.facing = Math.atan2(toPlayer.x, toPlayer.z);
+
+  bossGlow.position.copy(boss.group.position).y = 3;
+
+  switch (boss.state) {
+    case 'DORMANT':
+      if (dist < BOSS_AGGRO_RANGE) {
+        boss.state = 'CHASE';
+        boss.awake = true;
+        bossGlow.intensity = 2.2;
+      }
+      break;
+
+    case 'CHASE': {
+      boss.group.rotation.y = boss.facing;
+      if (dist > BOSS_MELEE_RANGE) {
+        const dir = toPlayer.clone().normalize();
+        boss.group.position.addScaledVector(dir, boss.speed * dt);
+      } else {
+        boss.state = 'TELEGRAPH';
+        boss.stateTimer = 0;
+        boss.attackType = (dist < BOSS_MELEE_RANGE + 1 && Math.random() < 0.35) ? 'SLAM' : (Math.random() < 0.5 ? 'SWING' : 'CHARGE');
+      }
+      break;
+    }
+
+    case 'TELEGRAPH': {
+      boss.stateTimer += dt;
+      boss.group.rotation.y = boss.facing;
+      const dur = boss.attackType === 'CHARGE' ? 0.9 : 0.75;
+      // 시각적 경고: 링이 커지면서 밝아짐
+      const t = boss.stateTimer / dur;
+      const showRadius = boss.attackType === 'SLAM' ? BOSS_SLAM_RADIUS : BOSS_MELEE_RANGE + 0.6;
+      telegraphRing.position.x = boss.group.position.x;
+      telegraphRing.position.z = boss.group.position.z;
+      telegraphRing.geometry.dispose();
+      telegraphRing.geometry = new THREE.RingGeometry(showRadius * t, showRadius * t + 0.2, 40);
+      telegraphRing.material.opacity = 0.55 * t;
+      axeGroup.rotation.x = -1.4 * t; // 도끼를 치켜드는 동작
+
+      if (boss.stateTimer >= dur) {
+        boss.state = 'ATTACK';
+        boss.stateTimer = 0;
+        telegraphRing.material.opacity = 0;
+        boss.attackHit = false;
+        if (boss.attackType === 'CHARGE') {
+          boss.chargeDir = toPlayer.clone().setY(0).normalize();
+        }
+      }
+      break;
+    }
+
+    case 'ATTACK': {
+      boss.stateTimer += dt;
+      axeGroup.rotation.x = -1.4 + boss.stateTimer * 9;
+      if (boss.attackType === 'CHARGE') {
+        boss.group.position.addScaledVector(boss.chargeDir, BOSS_CHARGE_SPEED * dt);
+        clampToArena(boss.group.position, boss.radius);
+      }
+      const activeWindow = boss.attackType === 'CHARGE' ? [0, 0.5] : [0.08, 0.22];
+      if (boss.stateTimer >= activeWindow[0] && boss.stateTimer <= activeWindow[1] && !boss.attackHit) {
+        const dNow = boss.group.position.distanceTo(player.group.position);
+        const hitRange = boss.attackType === 'SLAM' ? BOSS_SLAM_RADIUS : BOSS_MELEE_RANGE + 0.8;
+        if (dNow < hitRange) {
+          boss.attackHit = true;
+          const dmg = boss.attackType === 'SLAM' ? 22 : boss.attackType === 'CHARGE' ? 26 : 18;
+          // 광역 내려찍기(SLAM)는 패링 불가 — 무기 대 무기로 부딪히는 공격만 패링 가능
+          const canParry = boss.attackType !== 'SLAM';
+          const parryTiming = player.isParrying && player.parryTimer <= PARRY_ACTIVE && !player.parrySuccess;
+          if (canParry && parryTiming) {
+            player.parrySuccess = true;
+            triggerParrySuccess();
+          } else {
+            damagePlayer(dmg);
+          }
+        }
+      }
+      const attackDur = boss.attackType === 'CHARGE' ? 0.5 : 0.35;
+      if (boss.stateTimer >= attackDur) {
+        boss.state = 'RECOVER';
+        boss.stateTimer = 0;
+      }
+      break;
+    }
+
+    case 'RECOVER': {
+      boss.stateTimer += dt;
+      axeGroup.rotation.x += (0.4 - axeGroup.rotation.x) * dt * 6;
+      if (boss.stateTimer >= 0.7) {
+        boss.state = 'CHASE';
+      }
+      break;
+    }
+
+    // 패링에 성공했을 때 진입하는 상태: 잠시 완전히 무방비 상태가 됨
+    case 'STAGGER': {
+      boss.stateTimer += dt;
+      axeGroup.rotation.x += (0.9 - axeGroup.rotation.x) * dt * 4; // 무기를 축 늘어뜨림
+      if (boss.stateTimer >= BOSS_STAGGER_DURATION) {
+        boss.state = 'CHASE';
+      }
+      break;
+    }
+  }
+}
+
+function triggerParrySuccess() {
+  boss.state = 'STAGGER';
+  boss.stateTimer = 0;
+  telegraphRing.material.opacity = 0;
+  showParryText();
+  flash('#ffd15c');
+}
+
+// ---------------------------------------------------------------
+// 전투 판정: 플레이어 공격이 보스에게 맞았는지 체크
+// ---------------------------------------------------------------
+function resolveCombat(dt) {
+  if (player.isAttacking && !player.hitRegistered && boss.alive) {
+    const t = player.attackTimer / ATTACK_DURATION;
+    if (t >= ATTACK_HIT_WINDOW[0] && t <= ATTACK_HIT_WINDOW[1]) {
+      const dist = player.group.position.distanceTo(boss.group.position);
+      if (dist < PLAYER_ATTACK_RANGE + boss.radius) {
+        // 부채꼴 각도 체크: 플레이어가 보스 쪽을 보고 있어야 판정
+        const toBoss = new THREE.Vector3().subVectors(boss.group.position, player.group.position).normalize();
+        const facingVec = new THREE.Vector3(Math.sin(player.facing), 0, Math.cos(player.facing));
+        const angle = facingVec.angleTo(toBoss);
+        if (angle < PLAYER_ATTACK_ARC / 2) {
+          player.hitRegistered = true;
+          // 경직(STAGGER) 상태의 보스를 때리면 세키로 식 "필살기"처럼 추가 피해
+          const mult = boss.state === 'STAGGER' ? RIPOSTE_MULT : 1;
+          damageBoss(PLAYER_ATTACK_DMG * mult);
+        }
+      }
+    }
+  }
+}
+
+function damageBoss(amount) {
+  boss.hp -= amount;
+  flash();
+  if (boss.hp <= 0 && boss.alive) {
+    boss.hp = 0;
+    boss.alive = false;
+    boss.state = 'DEAD';
+    telegraphRing.material.opacity = 0;
+    // 보스 사망 연출: 서서히 가라앉음
+    const sinkInterval = setInterval(() => {
+      boss.group.position.y -= 0.03;
+      boss.group.rotation.z += 0.01;
+      bossGlow.intensity *= 0.9;
+      if (boss.group.position.y < -2) {
+        clearInterval(sinkInterval);
+        showEnding('victory');
+      }
+    }, 16);
+  }
+}
+
+function damagePlayer(amount) {
+  if (player.iframes || player.invulnAfterHit > 0 || !player.alive) return;
+  player.hp -= amount;
+  player.invulnAfterHit = 0.5;
+  flash();
+  if (player.hp <= 0 && player.alive) {
+    player.hp = 0;
+    player.alive = false;
+    showEnding('died');
+  }
+}
+
+// ---------------------------------------------------------------
+// 3인칭 카메라: 플레이어 뒤쪽 위에서 항상 플레이어를 바라봄
+// ---------------------------------------------------------------
+const camOffset = new THREE.Vector3();
+const camTargetPos = new THREE.Vector3();
+let camDistance = 6.5;
+
+canvas.addEventListener('wheel', e => {
+  camDistance = Math.max(3.5, Math.min(11, camDistance + e.deltaY * 0.01));
+});
+
+function updateCamera(dt) {
+  const dist = camDistance;
+  camOffset.set(
+    Math.sin(cameraYaw) * Math.cos(cameraPitch) * dist,
+    Math.sin(cameraPitch) * dist + 1.6,
+    Math.cos(cameraYaw) * Math.cos(cameraPitch) * dist
+  );
+  camTargetPos.copy(player.group.position).add(camOffset);
+
+  // 간단한 지면/아레나 벽 충돌 방지: 카메라가 바닥 아래로 가지 않게
+  camTargetPos.y = Math.max(camTargetPos.y, 0.8);
+
+  camera.position.lerp(camTargetPos, 1 - Math.pow(0.001, dt));
+  const lookAt = player.group.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+  camera.lookAt(lookAt);
+}
+
+animate();
+</script>
+</body>
+</html>

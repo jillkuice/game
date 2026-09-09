@@ -391,11 +391,11 @@ scene.add(player.group);
 
 const PLAYER_ATTACK_RANGE = 2.6;
 const PLAYER_ATTACK_ARC = Math.PI / 2.1; // 부채꼴 판정 각도
-const PLAYER_ATTACK_DMG = 14;
+const PLAYER_ATTACK_DMG = 10;
 const DODGE_DURATION = 0.38;
 const DODGE_SPEED = 14;
-const DODGE_STAMINA_COST = 26;
-const ATTACK_STAMINA_COST = 18;
+const DODGE_STAMINA_COST = 20;
+const ATTACK_STAMINA_COST = 15;
 const ATTACK_DURATION = 0.42;
 const ATTACK_HIT_WINDOW = [0.14, 0.28]; // 이 구간에서만 판정 발생
 
@@ -764,10 +764,10 @@ function announceTelegraph(type) {
   attackWarnEl.classList.remove('show', 'slam', 'melee');
   void attackWarnEl.offsetWidth; // 리플로우로 트랜지션 재생
   if (type === 'SLAM') {
-    attackWarnEl.textContent = '⚠ 광역 내려찍기 — 패링 불가, 피하거나 거리를 벌리세요';
+    attackWarnEl.textContent = ⚠;
     attackWarnEl.classList.add('slam');
   } else {
-    attackWarnEl.textContent = '⚔ 무기 공격 — 타이밍 맞춰 패링 가능';
+    attackWarnEl.textContent = ;
     attackWarnEl.classList.add('melee');
   }
   attackWarnEl.classList.add('show');

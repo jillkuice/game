@@ -764,10 +764,10 @@ function announceTelegraph(type) {
   attackWarnEl.classList.remove('show', 'slam', 'melee');
   void attackWarnEl.offsetWidth; // 리플로우로 트랜지션 재생
   if (type === 'SLAM') {
-    attackWarnEl.textContent = ⚠;
+    attackWarnEl.textContent = ⚠ 패링 불가 ;
     attackWarnEl.classList.add('slam');
   } else {
-    attackWarnEl.textContent = ;
+    attackWarnEl.textContent = 일반 공격;
     attackWarnEl.classList.add('melee');
   }
   attackWarnEl.classList.add('show');
